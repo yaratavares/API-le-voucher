@@ -1,6 +1,6 @@
 import { Voucher } from "@prisma/client";
 import voucherRepository from "../repositories/voucherRepository";
-import { conflictError } from "../utils/errorUtils";
+import { badRequestError, conflictError } from "../utils/errorUtils";
 
 const MIN_VALUE_FOR_DISCOUNT = 100;
 
@@ -16,7 +16,7 @@ async function createVoucher(code: string, discount: number) {
     throw conflictError("Voucher already exist.");
   }
 
-  await voucherRepository.createVoucher(code, discount);
+  return await voucherRepository.createVoucher(code, discount);
 }
 
 async function applyVoucher(code: string, amount: number) {
@@ -25,10 +25,17 @@ async function applyVoucher(code: string, amount: number) {
     throw conflictError("Voucher does not exist.");
   }
 
+  if(voucher.used){
+    throw badRequestError("Voucher already used.");
+  }
+  
   let finalAmount = amount;
-  if (isAmountValidForDiscount(amount) && !voucher.used) {
+  console.log(isAmountValidForDiscount(amount))
+  if (isAmountValidForDiscount(amount)) {
     await changeVoucherToUsed(code);
     finalAmount = applyDiscount(amount, voucher.discount);
+  } else {
+    throw badRequestError("Voucher does not allowed for discount.");
   }
 
   return {
@@ -43,7 +50,7 @@ async function changeVoucherToUsed(code: string) {
   return await voucherRepository.useVoucher(code);
 }
 
-function isAmountValidForDiscount(amount: number) {
+function isAmountValidForDiscount(amount: number): boolean {
   return amount >= MIN_VALUE_FOR_DISCOUNT;
 }
 
@@ -53,5 +60,8 @@ function applyDiscount(value: number, discount: number) {
 
 export default {
   createVoucher,
-  applyVoucher
+  applyVoucher,
+  applyDiscount,
+  isAmountValidForDiscount,
+  changeVoucherToUsed
 }
